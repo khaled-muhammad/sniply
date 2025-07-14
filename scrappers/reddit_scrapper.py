@@ -22,18 +22,13 @@ chrome_options.add_argument("user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 
 service = Service(ChromeDriverManager().install())
 
 def extract_post_id(post_url):
-    """
-    Extract a unique identifier for a Reddit post
-    """
     try:
         if post_url:
-            # Extract post ID from URL
             post_id = post_url.split('comments/')[1].split('/')[0]
             return post_id
     except Exception as e:
         pass
     
-    # Fallback: Generate a timestamp-based ID
     import time
     return f"post_{int(time.time() * 1000)}"
 
@@ -51,8 +46,6 @@ def startRedditScraping(account: Account):
 
     driver.refresh()
     print("Logged in using cookies!")
-
-    # Try to close overlay if present
     try:
         button = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((
@@ -66,33 +59,49 @@ def startRedditScraping(account: Account):
     except TimeoutException:
         print("Specific close-outline button not found within 10 seconds.")
 
-    # Set to store unique post IDs to prevent duplicates
     seen_posts = set()
     unique_posts = []
-    
-    # Counter for news posts sent to email
     news_posts_count = 0
     
-    # Scroll and process posts with smart scrolling
     last_height = driver.execute_script("return document.body.scrollHeight")
     posts_found_in_last_scroll = 0
     consecutive_empty_scrolls = 0
-    max_consecutive_empty_scrolls = 3
+    max_consecutive_empty_scrolls = 8
     scroll_count = 0
+    last_post_count = 0
+    stagnant_cycles = 0
+    loading_indicators_checked = 0
+    total_aggressive_attempts = 0
+    scroll_positions = []
     
-    while scroll_count < 10000:  # Maximum scroll limit
+    while scroll_count < 10000:
         try:
             feed = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "shreddit-feed"))
             )
             
+            loading_indicators = driver.find_elements(By.CSS_SELECTOR, 
+                "shreddit-loading, [data-testid='loading'], .loading, shreddit-async-loader")
+            
+            if loading_indicators:
+                print(f"Loading indicators detected: {len(loading_indicators)} (ignoring for now)")
+                loading_indicators_checked += 1
+                sleep(1)
+            
             print(f"Processing feed on scroll {scroll_count+1}")
             
             posts = feed.find_elements(By.TAG_NAME, 'shreddit-post')
+            current_post_count = len(posts)
             
-            print(f"Found: {len(posts)} posts on scroll {scroll_count+1}")
+            print(f"Found: {current_post_count} total posts on scroll {scroll_count+1}")
             
-            # Track new posts found in this scroll
+            if current_post_count == last_post_count:
+                stagnant_cycles += 1
+                print(f"Post count stagnant for {stagnant_cycles} cycles (will try {15 - stagnant_cycles} more times)")
+            else:
+                stagnant_cycles = 0
+            
+            last_post_count = current_post_count
             new_posts_this_scroll = 0
 
             for post in posts:
@@ -100,15 +109,12 @@ def startRedditScraping(account: Account):
                     post_url = post.find_element(By.CSS_SELECTOR, 'a[slot="full-post-link"]').get_attribute("href")
                     post_id = extract_post_id(post_url)
                     
-                    # Skip if we've seen this post before
                     if post_id in seen_posts:
                         continue
                     
-                    # Mark this post as seen and increment new posts counter
                     seen_posts.add(post_id)
                     new_posts_this_scroll += 1
                     
-                    # Extract post text
                     post_text = None
                     try:
                         element = post.find_element(By.CSS_SELECTOR, 'faceplate-screen-reader-content')
@@ -116,7 +122,6 @@ def startRedditScraping(account: Account):
                     except:
                         pass
                     
-                    # Extract subreddit name
                     subreddit = None
                     try:
                         subreddit_element = post.find_element(By.CSS_SELECTOR, 'a[data-click-id="subreddit"]')
@@ -124,7 +129,6 @@ def startRedditScraping(account: Account):
                     except:
                         pass
                     
-                    # Extract username
                     username = None
                     try:
                         username_element = post.find_element(By.CSS_SELECTOR, 'a[data-click-id="user"]')
@@ -132,10 +136,8 @@ def startRedditScraping(account: Account):
                     except:
                         pass
                     
-                    # Extract media URLs
                     media_urls = []
 
-                    # 1. Single image post
                     try:
                         single_imgs = post.find_elements(By.CSS_SELECTOR, "shreddit-aspect-ratio img.media-lightbox-img")
                         for img in single_imgs:
@@ -145,7 +147,6 @@ def startRedditScraping(account: Account):
                     except:
                         pass
 
-                    # 2. Carousel images
                     try:
                         carousel_imgs = post.find_elements(By.CSS_SELECTOR, "gallery-carousel li figure img")
                         for img in carousel_imgs:
@@ -155,11 +156,9 @@ def startRedditScraping(account: Account):
                     except:
                         pass
 
-                    # 3. Videos
                     try:
                         video_players = post.find_elements(By.CSS_SELECTOR, "shreddit-player-2")
                         for player in video_players:
-                            # First try the <source> tag
                             try:
                                 source = player.find_element(By.TAG_NAME, "source")
                                 src = source.get_attribute("src")
@@ -168,14 +167,12 @@ def startRedditScraping(account: Account):
                                     continue
                             except:
                                 pass
-                            # Fallback to video.src attribute
                             video_src = player.get_attribute("src")
                             if video_src:
                                 media_urls.append(video_src)
                     except:
                         pass
 
-                    # Store post data
                     post_data = {
                         'id': post_id,
                         'username': username or "Unknown User",
@@ -185,26 +182,21 @@ def startRedditScraping(account: Account):
                         'media': media_urls
                     }
                     
-                    # Skip posts with no meaningful content
                     if not post_text or len(post_text) < 10:
                         print(f"Post {post_id} has no meaningful text. Skipping...")
                         continue
                     
-                    # Categorize the post
                     category = categorize_post(post_text)
                     post_data['category'] = category
                     
-                    # If it's a news post, clean it and send to email
                     if category == "news":
                         cleaned_content = clean_post(post_data)
                         if send_email(post_data, cleaned_content):
                             news_posts_count += 1
                             print(f"News post from r/{post_data['subreddit']} sent to email")
                     
-                    # Add to unique posts
                     unique_posts.append(post_data)
                     
-                    # Output
                     print(f"Post ID: {post_id}")
                     print(f"Subreddit: {post_data['subreddit']}")
                     print(f"Username: {post_data['username']}")
@@ -218,10 +210,17 @@ def startRedditScraping(account: Account):
                     print(f"Error processing post: {e}")
                     continue
             
-            # Update tracking variables
             posts_found_in_last_scroll = new_posts_this_scroll
+            current_position = driver.execute_script("return window.pageYOffset;")
+            scroll_positions.append(current_position)
             
-            # Smart scrolling logic
+            if len(scroll_positions) > 5:
+                scroll_positions.pop(0)
+            
+            position_stuck = len(scroll_positions) >= 5 and all(
+                abs(pos - scroll_positions[0]) < 20 for pos in scroll_positions
+            )
+            
             if new_posts_this_scroll == 0:
                 consecutive_empty_scrolls += 1
                 print(f"No new posts found. Consecutive empty scrolls: {consecutive_empty_scrolls}")
@@ -229,56 +228,114 @@ def startRedditScraping(account: Account):
                 consecutive_empty_scrolls = 0
                 print(f"Found {new_posts_this_scroll} new posts this scroll")
             
-            # If we've had too many consecutive empty scrolls, try different scrolling strategies
-            if consecutive_empty_scrolls >= max_consecutive_empty_scrolls:
-                print("Trying aggressive scrolling due to consecutive empty scrolls...")
-                # Try scrolling to absolute bottom
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                sleep(5)
+            viewport_height = driver.execute_script("return window.innerHeight")
+            scroll_height = driver.execute_script("return document.body.scrollHeight")
+            
+            if position_stuck or stagnant_cycles >= 15:
+                print("AGGRESSIVE MODE: Position stuck or too many stagnant cycles")
+                total_aggressive_attempts += 1
                 
-                # Reset counter after aggressive scroll
+                techniques = [
+                    "window.scrollTo(0, document.body.scrollHeight);",
+                    f"window.scrollBy(0, {viewport_height * 5});",
+                    "window.scrollTo(0, document.body.scrollHeight - 2000);",
+                    f"window.scrollBy(0, {viewport_height * 8});",
+                    "window.scrollTo(0, document.body.scrollHeight - 500);",
+                    f"window.scrollBy(0, {viewport_height * 10});"
+                ]
+                
+                for i, technique in enumerate(techniques):
+                    print(f"Trying aggressive technique {i+1}/{len(techniques)}")
+                    driver.execute_script(technique)
+                    sleep(3)
+                    
+                    new_posts_check = len(driver.find_elements(By.TAG_NAME, 'shreddit-post'))
+                    if new_posts_check > current_post_count:
+                        print(f"Technique {i+1} worked! Found {new_posts_check - current_post_count} new posts")
+                        break
+                    
+                    for j in range(3):
+                        driver.execute_script(f"window.scrollBy(0, {viewport_height});")
+                        sleep(1)
+                    
+                sleep(6)
+                stagnant_cycles = 0
+                
+            elif loading_indicators and loading_indicators_checked < 50:
+                print("LOADING MODE: Detected loading indicators (being aggressive)")
+                
+                for _ in range(5):
+                    driver.execute_script(f"window.scrollBy(0, {viewport_height // 2});")
+                    sleep(1)
+                
+                sleep(2)
+                
+            elif consecutive_empty_scrolls >= max_consecutive_empty_scrolls:
+                print("SEARCH MODE: Multiple empty scrolls, searching for content")
+                
+                scroll_distances = [viewport_height // 2, viewport_height, viewport_height * 1.5]
+                
+                for distance in scroll_distances:
+                    driver.execute_script(f"window.scrollBy(0, {distance});")
+                    sleep(1.5)
+                    
+                    quick_posts = len(driver.find_elements(By.TAG_NAME, 'shreddit-post'))
+                    if quick_posts > current_post_count:
+                        print(f"Found content with {distance}px scroll")
+                        break
+                
                 consecutive_empty_scrolls = 0
-            else:
-                # Adaptive smooth scrolling based on content found
-                current_position = driver.execute_script("return window.pageYOffset;")
-                scroll_height = driver.execute_script("return document.body.scrollHeight")
-                viewport_height = driver.execute_script("return window.innerHeight")
                 
-                # Adjust scroll speed based on content discovery
-                if new_posts_this_scroll > 5:
-                    # Lots of content, scroll slower to process more
+            else:
+                print("ADAPTIVE MODE: Normal content-aware scrolling")
+                
+                if new_posts_this_scroll > 8:
+                    scroll_step = viewport_height // 6
+                    scroll_iterations = 2
+                    sleep_between = 2
+                elif new_posts_this_scroll > 3:
                     scroll_step = viewport_height // 4
                     scroll_iterations = 3
                     sleep_between = 1.5
                 elif new_posts_this_scroll > 0:
-                    # Some content, normal scrolling
                     scroll_step = viewport_height // 3
                     scroll_iterations = 4
                     sleep_between = 1
                 else:
-                    # No content, scroll faster
                     scroll_step = viewport_height // 2
-                    scroll_iterations = 6
-                    sleep_between = 0.5
+                    scroll_iterations = 5
+                    sleep_between = 0.8
                 
-                # Perform adaptive smooth scrolling
                 for i in range(scroll_iterations):
                     driver.execute_script(f"window.scrollBy(0, {scroll_step});")
                     sleep(sleep_between)
                     
-                    # Check if we've reached the bottom during scrolling
+                    if i == scroll_iterations // 2:
+                        mid_posts = len(driver.find_elements(By.TAG_NAME, 'shreddit-post'))
+                        if mid_posts > current_post_count:
+                            print(f"Content loaded mid-scroll: {mid_posts - current_post_count} new posts")
+                    
                     current_pos = driver.execute_script("return window.pageYOffset;")
                     total_height = driver.execute_script("return document.body.scrollHeight")
-                    if current_pos + viewport_height >= total_height - 100:  # Near bottom
-                        print("Reached near bottom during smooth scroll")
+                    if current_pos + viewport_height >= total_height - 100:
+                        print("Reached near bottom during adaptive scroll")
                         break
                 
-                sleep(2)  # Additional wait for content to load
+                sleep(2)
             
-            # Check if page height changed (new content loaded)
             new_height = driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height and consecutive_empty_scrolls >= max_consecutive_empty_scrolls:
-                print("No new content loaded and multiple empty scrolls. Stopping.")
+            
+            should_stop = (
+                (new_height == last_height and 
+                 consecutive_empty_scrolls >= max_consecutive_empty_scrolls and 
+                 stagnant_cycles >= 20 and 
+                 total_aggressive_attempts >= 5) or
+                (position_stuck and stagnant_cycles >= 25 and total_aggressive_attempts >= 3) or
+                (scroll_count > 500)
+            )
+            
+            if should_stop:
+                print(f"Really stopping now: scroll_count={scroll_count}, stagnant_cycles={stagnant_cycles}, aggressive_attempts={total_aggressive_attempts}")
                 break
             
             last_height = new_height
@@ -288,11 +345,9 @@ def startRedditScraping(account: Account):
             print("shreddit-feed did not appear within 5 seconds.")
             break
     
-    # Summary
     print(f"\nScraping Summary:")
     print(f"Total unique posts processed: {len(unique_posts)}")
     print(f"News posts sent to email: {news_posts_count}")
     
-    # Keep the browser window open
     input("Press Enter to close the browser...")
     driver.quit()
