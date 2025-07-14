@@ -80,7 +80,8 @@ def startLinkedInScraping(account: Account):
 
     seen_posts = set()
     unique_posts = []
-    news_posts_count = 0
+    email_posts_count = 0
+    max_posts = account.settings.max_posts_per_scrape
     
     last_height = driver.execute_script("return document.body.scrollHeight")
     posts_found_in_last_scroll = 0
@@ -90,7 +91,9 @@ def startLinkedInScraping(account: Account):
     last_post_count = 0
     stagnant_cycles = 0
     total_aggressive_attempts = 0
+    max_aggressive_attempts = 5
     scroll_positions = []
+    posts_unchanged_count = 0
 
     while scroll_count < 10000:
         try:
@@ -126,7 +129,6 @@ def startLinkedInScraping(account: Account):
                         profileLinkEle = post.find_element(By.CSS_SELECTOR, 'a[data-tracking-control-name*="feed-actor"], a[data-feed-action-type="viewMember"]')
                         profileLink = profileLinkEle.get_attribute("href")
                         
-                        # Extract username from profile link
                         username = "Unknown User"
                         if "/in/" in profileLink:
                             username = profileLink.split("/in/")[1].split("/")[0].split("?")[0]
@@ -162,11 +164,11 @@ def startLinkedInScraping(account: Account):
                     category = categorize_post(postText)
                     post_data['category'] = category
                     
-                    if category == "news":
+                    if category in account.settings.email_categories:
                         cleaned_content = clean_post(post_data)
-                        if send_email(post_data, cleaned_content):
-                            news_posts_count += 1
-                            print(f"News post from {username} sent to email")
+                        if send_email(post_data, cleaned_content, account.settings):
+                            email_posts_count += 1
+                            print(f"{category.title()} post from {username} sent to email")
                     
                     unique_posts.append(post_data)
                     
@@ -177,6 +179,11 @@ def startLinkedInScraping(account: Account):
                     print(f"Post Text: {postText[:100]}..." if postText and len(postText) > 100 else f"Post Text: {postText}")
                     print(f"Image: {imageSrc}")
                     print("=====================")
+                    
+                    if len(unique_posts) >= max_posts:
+                        print(f"Reached maximum posts limit ({max_posts}). Stopping...")
+                        scroll_count = 10000
+                        break
                     
                 except Exception as e:
                     print(f"Error processing post: {e}")
@@ -203,104 +210,61 @@ def startLinkedInScraping(account: Account):
             viewport_height = driver.execute_script("return window.innerHeight")
             scroll_height = driver.execute_script("return document.body.scrollHeight")
             
+            if new_posts_this_scroll == 0:
+                posts_unchanged_count += 1
+            else:
+                posts_unchanged_count = 0
+            
+            # Improved exit conditions
+            should_exit = (
+                total_aggressive_attempts >= max_aggressive_attempts or
+                posts_unchanged_count >= 20 or
+                (consecutive_empty_scrolls >= max_consecutive_empty_scrolls and stagnant_cycles >= 10) or
+                len(unique_posts) >= max_posts
+            )
+            
+            if should_exit:
+                print(f"Stopping scraping: aggressive_attempts={total_aggressive_attempts}, "
+                      f"posts_unchanged={posts_unchanged_count}, unique_posts={len(unique_posts)}")
+                break
+            
             if position_stuck or stagnant_cycles >= 15:
-                print("AGGRESSIVE MODE: Position stuck or too many stagnant cycles")
+                if total_aggressive_attempts >= max_aggressive_attempts:
+                    print(f"Maximum aggressive attempts ({max_aggressive_attempts}) reached. Stopping.")
+                    break
+                    
+                print(f"AGGRESSIVE MODE: Position stuck or too many stagnant cycles (attempt {total_aggressive_attempts + 1}/{max_aggressive_attempts})")
                 total_aggressive_attempts += 1
+                
+                current_unique_count = len(unique_posts)
                 
                 techniques = [
                     "window.scrollTo(0, document.body.scrollHeight);",
-                    f"window.scrollBy(0, {viewport_height * 5});",
-                    "window.scrollTo(0, document.body.scrollHeight - 2000);",
-                    f"window.scrollBy(0, {viewport_height * 8});",
-                    "window.scrollTo(0, document.body.scrollHeight - 500);",
-                    f"window.scrollBy(0, {viewport_height * 10});"
+                    f"window.scrollBy(0, {viewport_height * 3});",
+                    "window.scrollTo(0, document.body.scrollHeight - 1000);",
+                    f"window.scrollBy(0, {viewport_height * 2});",
                 ]
                 
+                technique_worked = False
                 for i, technique in enumerate(techniques):
                     print(f"Trying aggressive technique {i+1}/{len(techniques)}")
                     driver.execute_script(technique)
-                    sleep(3)
+                    sleep(4)
                     
-                    new_posts_check = len(driver.find_elements(By.CSS_SELECTOR, 'article.main-feed-activity-card, li.feed-item'))
-                    if new_posts_check > current_post_count:
-                        print(f"Technique {i+1} worked! Found {new_posts_check - current_post_count} new posts")
-                        break
+                    break
                     
-                    for j in range(3):
-                        driver.execute_script(f"window.scrollBy(0, {viewport_height});")
-                        sleep(1)
+                if not technique_worked:
+                    print("No aggressive techniques found truly new content")
                     
-                sleep(6)
+                sleep(3)
                 stagnant_cycles = 0
                 
-            elif consecutive_empty_scrolls >= max_consecutive_empty_scrolls:
-                print("SEARCH MODE: Multiple empty scrolls, searching for content")
-                
-                scroll_distances = [viewport_height // 2, viewport_height, viewport_height * 1.5]
-                
-                for distance in scroll_distances:
-                    driver.execute_script(f"window.scrollBy(0, {distance});")
-                    sleep(1.5)
-                    
-                    quick_posts = len(driver.find_elements(By.CSS_SELECTOR, 'article.main-feed-activity-card, li.feed-item'))
-                    if quick_posts > current_post_count:
-                        print(f"Found content with {distance}px scroll")
-                        break
-                
-                consecutive_empty_scrolls = 0
-                
             else:
-                print("ADAPTIVE MODE: Normal content-aware scrolling")
-                
-                if new_posts_this_scroll > 8:
-                    scroll_step = viewport_height // 6
-                    scroll_iterations = 2
-                    sleep_between = 2
-                elif new_posts_this_scroll > 3:
-                    scroll_step = viewport_height // 4
-                    scroll_iterations = 3
-                    sleep_between = 1.5
-                elif new_posts_this_scroll > 0:
-                    scroll_step = viewport_height // 3
-                    scroll_iterations = 4
-                    sleep_between = 1
-                else:
-                    scroll_step = viewport_height // 2
-                    scroll_iterations = 5
-                    sleep_between = 0.8
-                
-                for i in range(scroll_iterations):
-                    driver.execute_script(f"window.scrollBy(0, {scroll_step});")
-                    sleep(sleep_between)
-                    
-                    if i == scroll_iterations // 2:
-                        mid_posts = len(driver.find_elements(By.CSS_SELECTOR, 'article.main-feed-activity-card, li.feed-item'))
-                        if mid_posts > current_post_count:
-                            print(f"Content loaded mid-scroll: {mid_posts - current_post_count} new posts")
-                    
-                    current_pos = driver.execute_script("return window.pageYOffset;")
-                    total_height = driver.execute_script("return document.body.scrollHeight")
-                    if current_pos + viewport_height >= total_height - 100:
-                        print("Reached near bottom during adaptive scroll")
-                        break
-                
+                # Normal scrolling if no probs found
+                driver.execute_script(f"window.scrollBy(0, {viewport_height});")
                 sleep(2)
             
             new_height = driver.execute_script("return document.body.scrollHeight")
-            
-            should_stop = (
-                (new_height == last_height and 
-                 consecutive_empty_scrolls >= max_consecutive_empty_scrolls and 
-                 stagnant_cycles >= 20 and 
-                 total_aggressive_attempts >= 5) or
-                (position_stuck and stagnant_cycles >= 25 and total_aggressive_attempts >= 3) or
-                (scroll_count > 500)
-            )
-            
-            if should_stop:
-                print(f"Really stopping now: scroll_count={scroll_count}, stagnant_cycles={stagnant_cycles}, aggressive_attempts={total_aggressive_attempts}")
-                break
-            
             last_height = new_height
             scroll_count += 1
             
@@ -309,9 +273,12 @@ def startLinkedInScraping(account: Account):
             scroll_count += 1
             continue
     
-    print(f"\nScraping Summary:")
+    print(f"\nScraping Summary for {account.username}:")
     print(f"Total unique posts processed: {len(unique_posts)}")
-    print(f"News posts sent to email: {news_posts_count}")
+    print(f"Posts sent to email: {email_posts_count}")
+    print(f"Email categories: {', '.join(account.settings.email_categories)}")
+    print(f"Max posts limit: {max_posts}")
+    print(f"Aggressive attempts used: {total_aggressive_attempts}/{max_aggressive_attempts}")
     
     input("Press Enter to close the browser...")
     driver.quit()
