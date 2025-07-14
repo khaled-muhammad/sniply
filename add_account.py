@@ -86,7 +86,39 @@ def add_account():
             except:
                 print("Time limit, exceeded! Please try again.")
         elif choice == "3":
-            pass
+            print("You selected to add a new LinkedIn account.")
+            print("Please, login in the pop up.")
+            try:
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+                driver.get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin")
+                WebDriverWait(driver, 300).until(EC.url_contains("/feed"))
+
+                while True:
+                    sidebar = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'div[aria-label="Side Bar"]'))
+                    )
+
+
+                    profileLinkEle = sidebar.find_element(By.TAG_NAME, "a")
+                    profileLink = profileLinkEle.get_attribute("href")
+                    username    = profileLink.split('/')[-2]
+                    if username != 'mynetwork': break
+
+                print("Username:", username)
+
+                time.sleep(10)
+
+                cookies = driver.get_cookies()
+
+                saveAuth(
+                    platform_name='linkedin',
+                    username=username,
+                    cookies=cookies
+                )
+
+                print("Logged in successfully!")
+            except:
+                print("Time limit, exceeded! Please try again.")
         elif choice == "4":
             print("You selected to add a new Reddit account.")
             print("Please, login in the pop up ............ and click on your profile after login on top right corner.")
