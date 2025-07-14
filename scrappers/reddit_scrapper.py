@@ -35,7 +35,14 @@ def extract_post_id(post_url):
 def startRedditScraping(account: Account):
     driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    driver.get("https://reddit.com/")
+    # Check if specific subreddits are configured
+    if account.settings.subreddits:
+        print(f"Will scrape specific subreddits: {', '.join(account.settings.subreddits)}")
+        # Navigate to first subreddit
+        driver.get(f"https://reddit.com/r/{account.settings.subreddits[0]}")
+    else:
+        driver.get("https://reddit.com/")
+    
     sleep(3)
 
     print("Authenticating ...")
@@ -61,7 +68,8 @@ def startRedditScraping(account: Account):
 
     seen_posts = set()
     unique_posts = []
-    news_posts_count = 0
+    email_posts_count = 0
+    max_posts = account.settings.max_posts_per_scrape
     
     last_height = driver.execute_script("return document.body.scrollHeight")
     posts_found_in_last_scroll = 0
@@ -188,14 +196,22 @@ def startRedditScraping(account: Account):
                     
                     category = categorize_post(post_text)
                     post_data['category'] = category
+                    post_data['platform'] = 'reddit'
                     
-                    if category == "news":
+                    # Check if this category should be emailed for this account
+                    if category in account.settings.email_categories:
                         cleaned_content = clean_post(post_data)
-                        if send_email(post_data, cleaned_content):
-                            news_posts_count += 1
-                            print(f"News post from r/{post_data['subreddit']} sent to email")
+                        if send_email(post_data, cleaned_content, account.settings):
+                            email_posts_count += 1
+                            print(f"{category.title()} post from r/{post_data['subreddit']} sent to email")
                     
                     unique_posts.append(post_data)
+                    
+                    # Check if we've reached the max posts limit
+                    if len(unique_posts) >= max_posts:
+                        print(f"Reached maximum posts limit ({max_posts}). Stopping...")
+                        scroll_count = 10000
+                        break
                     
                     print(f"Post ID: {post_id}")
                     print(f"Subreddit: {post_data['subreddit']}")
@@ -345,9 +361,16 @@ def startRedditScraping(account: Account):
             print("shreddit-feed did not appear within 5 seconds.")
             break
     
-    print(f"\nScraping Summary:")
+    print(f"\nScraping Summary for {account.username}:")
     print(f"Total unique posts processed: {len(unique_posts)}")
-    print(f"News posts sent to email: {news_posts_count}")
+    print(f"Posts sent to email: {email_posts_count}")
+    print(f"Email categories: {', '.join(account.settings.email_categories)}")
+    print(f"Max posts limit: {max_posts}")
+    
+    # If specific sub redds were configed, suggest scraping them each one
+    if account.settings.subreddits and len(account.settings.subreddits) > 1:
+        print(f"\nNote: You have {len(account.settings.subreddits)} subreddits configured.")
+        print("Consider running separate scraping sessions for each subreddit for better coverage.")
     
     input("Press Enter to close the browser...")
     driver.quit()
