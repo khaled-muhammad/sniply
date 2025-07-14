@@ -4,7 +4,7 @@ from colorama import Fore
 from add_account import add_account
 from start import start
 from view_accounts import viewAccounts
-from manage_accounts import manage_accounts
+from manage_accounts import run_account_manager
 
 print(Fore.GREEN + """
  ░▒▓███████▓▒░▒▓███████▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░ 
@@ -31,7 +31,7 @@ if choice == '1':
 elif choice == '2':
     viewAccounts()
 elif choice == '3':
-    manage_accounts()
+    run_account_manager()
 elif choice == '4':
     add_account()
 elif choice == '5':
