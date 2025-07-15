@@ -38,4 +38,8 @@ posts_html/
 reddit_html_posts/
 
 # Other
-sent_emails.txt 
+sent_emails.txt
+
+# Demo mode files
+demo_*.sc
+*demo_*_settings.json 
