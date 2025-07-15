@@ -27,7 +27,7 @@ POST_CATEGORIES = [
 ]
 
 def getSMAPath():
-    p = f"{os.path.expanduser("~/sniply")}/sm_accs/"
+    p = f"{os.path.expanduser('~/sniply')}/sm_accs/"
     pathlib.Path(p).mkdir(parents=True, exist_ok=True)
 
     return p
