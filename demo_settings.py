@@ -84,5 +84,4 @@ def run_settings_demo():
     print("You can manage all accounts from the main menu (option 3).")
 
 
-if __name__ == '__main__':
-    run_settings_demo() 
+run_settings_demo()
