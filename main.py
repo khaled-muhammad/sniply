@@ -6,8 +6,8 @@ from start import start
 from view_accounts import viewAccounts
 from manage_accounts import run_account_manager
 from demo_mode import setup_demo_mode, cleanup_demo_mode, is_demo_mode
-from demo_scraper import start_demo_scraping
-from demo_add_account import demo_add_account
+from demo_scraper import run_demo_scrape
+from demo_add_account import add_demo_account
 
 print(Fore.GREEN + """
  ░▒▓███████▓▒░▒▓███████▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░ 
@@ -40,7 +40,7 @@ choice = input("Enter your choice: ")
 if choice == '1':
     if demo_active:
         print("Starting demo scraping...")
-        start_demo_scraping()
+        run_demo_scrape()
     else:
         start()
 elif choice == '2':
@@ -49,7 +49,7 @@ elif choice == '3':
     run_account_manager()
 elif choice == '4':
     if demo_active:
-        demo_add_account()
+        add_demo_account()
     else:
         add_account()
 elif choice == '5':
