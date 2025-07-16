@@ -1,13 +1,66 @@
-# Sniply Demo Mode
+# Sniply Demo Mode - Tester Guide
 
-Welcome to Sniply Demo Mode! This allows you to test all features without needing real social media accounts.
+Welcome to Sniply Demo Mode! This guide matches the tester mode setup from our landing page and allows you to test all features without needing real social media accounts.
 
-## Quick Start
+## Quick Setup Guide
 
-1. **Run the application**: `python main.py`
-2. **Choose option 5**: Demo Mode
-3. **Select option 1**: Setup Demo Mode
-4. **Start testing**: Return to main menu and explore all features
+Follow these 6 steps to get started with demo mode:
+
+### Step 1: Clone Repository
+Clone the project and set up the development environment:
+```bash
+git clone https://github.com/khaled-muhammad/sniply.git
+cd sniply
+```
+
+### Step 2: Install Dependencies
+Install development dependencies and set up virtual environment:
+```bash
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 3: Setup Environment
+Create a .env file in the project root and add your GROQ API key:
+```bash
+GROQ_API_KEY=your_api_key_here
+```
+
+### Step 4: Start Development
+Run in development mode with debugging enabled:
+```bash
+python demo_mode.py
+```
+
+### Step 5: Choose Demo Mode
+Select demo mode options (1 on, 2 off, 3 status): Enter **1** to turn on the mode:
+```
+1
+```
+
+### Step 6: Run Main & Start Scraping
+Execute the main script and select option 1 to start scraping:
+```bash
+python main.py
+```
+
+When the main menu appears, you'll see:
+```
+Welcome to Sniply, Only the posts worth your time
+🎮 DEMO MODE ACTIVE
+
+Please choose an option:
+1- Start Scraping
+2- View Connected Accounts
+3- Manage Accounts (Settings, Delete, Re-auth)
+4- Add New Account
+5- Demo Mode
+6- Exit
+
+Enter your choice: 1
+```
+
+→ **(Visual Demo Only - Please test do the steps on real device)**
 
 ## What Demo Mode Includes
 
@@ -29,38 +82,9 @@ Welcome to Sniply Demo Mode! This allows you to test all features without needin
 - **Scraping Simulation**: See how posts are processed and categorized
 - **Email System**: Test email notifications (saved to `sent_emails.txt`)
 
-## How to Use Demo Mode
+## Main Menu Options
 
-### 1. Setup Demo Mode
-```bash
-python main.py
-# Choose: 5 (Demo Mode)
-# Choose: 1 (Setup Demo Mode)
-```
-
-This creates:
-- 20 demo accounts across all platforms
-- Randomized settings for variety
-- Mock authentication cookies
-- Sample subreddit/user follows
-
-### 2. Test Account Management
-```bash
-# From main menu: 3 (Manage Accounts)
-```
-
-You can:
-- View all demo accounts
-- Edit settings (email categories, post limits)
-- Enable/disable accounts
-- Delete accounts
-- Test re-authentication flow
-
-### 3. Test Scraping
-```bash
-# From main menu: 1 (Start Scraping)
-```
-
+### 1. Start Scraping
 Demo scraping will:
 - Process 20-50 posts per account
 - Categorize posts using AI
@@ -68,27 +92,36 @@ Demo scraping will:
 - Show realistic progress output
 - Complete without browser automation
 
-### 4. Add New Demo Accounts
-```bash
-# From main menu: 4 (Add New Account)
-```
+### 2. View Connected Accounts
+See all your demo accounts with:
+- Platform and username
+- Enable/disable status
+- Email categories
+- Post limits and intervals
 
+### 3. Manage Accounts
+You can:
+- View all demo accounts
+- Edit settings (email categories, post limits)
+- Enable/disable accounts
+- Delete accounts
+- Test re-authentication flow
+
+### 4. Add New Account
 In demo mode, this will:
 - Simulate account creation
 - Let you choose platform and username
 - Configure settings interactively
 - No real authentication required
 
-### 5. View Account Status
-```bash
-# From main menu: 2 (View Connected Accounts)
-```
+### 5. Demo Mode
+Access demo mode settings:
+- Toggle demo mode on/off
+- Check current status
+- Cleanup demo data
 
-See all your demo accounts with:
-- Platform and username
-- Enable/disable status
-- Email categories
-- Post limits and intervals
+### 6. Exit
+Exit the application
 
 ## Demo Data Categories
 
@@ -129,30 +162,29 @@ See all your demo accounts with:
 
 ## Testing Scenarios
 
-### Scenario 1: News Aggregation
-1. Set up accounts with "news" category enabled
-2. Run scraping to see news posts processed
-3. Check `sent_emails.txt` for email notifications
-4. Adjust settings and test again
+### Scenario 1: First Time Setup
+1. Follow steps 1-6 above
+2. Choose option 1 to start scraping
+3. Watch demo posts being processed
+4. Check `sent_emails.txt` for results
 
-### Scenario 2: Multi-Platform Management
-1. Enable accounts across all platforms
-2. Configure different categories per platform
-3. Test scraping with various post limits
-4. Compare results across platforms
+### Scenario 2: Account Management
+1. Choose option 2 to view accounts
+2. Choose option 3 to manage accounts
+3. Modify settings for different platforms
+4. Test scraping with new settings
 
-### Scenario 3: Account Lifecycle
-1. Add new demo account
-2. Configure specific settings
-3. Test scraping functionality
-4. Modify settings and re-test
-5. Disable/delete account
+### Scenario 3: Adding New Accounts
+1. Choose option 4 to add new account
+2. Select platform and configure settings
+3. Test scraping with new account
+4. Verify account appears in account list
 
-### Scenario 4: Reddit Subreddit Testing
-1. Configure Reddit accounts with specific subreddits
-2. Test scraping with subreddit filtering
-3. Compare general feed vs specific subreddits
-4. Adjust subreddit lists and re-test
+### Scenario 4: Demo Mode Management
+1. Choose option 5 for demo mode settings
+2. Test toggling demo mode on/off
+3. Check status and cleanup options
+4. Verify demo data management
 
 ## Demo Mode Files
 
@@ -203,10 +235,11 @@ This will:
 ## Troubleshooting
 
 ### Demo Mode Not Working?
-1. Check if `GROQ_API_KEY` is set (for AI categorization)
-2. Ensure write permissions in home directory
-3. Run cleanup and setup again
-4. Check for Python package dependencies
+1. Ensure you followed all 6 steps in order
+2. Check if `GROQ_API_KEY` is set (for AI categorization)
+3. Ensure write permissions in home directory
+4. Run cleanup and setup again
+5. Check for Python package dependencies
 
 ### Missing Posts?
 - Demo posts are randomly generated
@@ -216,7 +249,7 @@ This will:
 
 ### Settings Not Saving?
 - Check file permissions
-- Ensure demo mode is active
+- Ensure demo mode is active (🎮 DEMO MODE ACTIVE should show)
 - Try cleanup and re-setup
 - Verify account exists before configuring
 
@@ -240,4 +273,4 @@ After testing with demo mode:
 4. **Test edge cases** and error conditions
 5. **Verify all features** work as expected
 
-Ready to test? Run `python main.py` and choose option 5! 
+Ready to test? Follow the 6 steps above and start with `python demo_mode.py`! 
